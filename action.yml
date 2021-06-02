@@ -1,0 +1,47 @@
+name: "Matrix file message"
+description: "Send a file to the matrix chat"
+inputs:
+  file-path:
+    description: "File to send"
+    required: true
+  content-type:
+    description: "Content type header value of the given file"
+    required: true
+  file-name:
+    description: "Desired name of the file"
+    required: true
+  file-type:
+    description: "Type of the file when sent to the chat (m.file, m.video, m.audio, m.image)"
+    required: true
+  chat-id:
+    description: "The ID of the chat"
+    required: true
+  authentication-token:
+    description: "Token for user with rights to send the file"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        CONTENT_URI=$(curl -H "Authorization: Bearer ${{ inputs.authentication-token }}" -H "Content-Type: ${{ inputs.content-type }}" -X POST --data-binary "@${{ inputs.file-path }}" 'https://matrix.org/_matrix/media/r0/upload?filename=${{ inputs.file-name }}' | jq -r .content_uri)
+        curl "https://matrix.org/_matrix/client/r0/rooms/${{ secrets.MATRIX_CHAT_ID }}/send/m.room.message/$(uuidgen)" \
+        -H "Authorization: Bearer ${{ secrets.MATRIX_TOKEN }}" \
+        -X PUT \
+        # --data "{\"msgtype\": \"m.file\", \"body\": \"app-release.apk\", \"url\": \"$CONTENT_URI\", \"info\": {\"mimetype\": \"application/vnd.android.package-archive\", \"size\": $(du -b app-release.apk | cut -f1)}}"
+        --data "$(jq -c -n --arg msgtype "${{ inputs.file-type }}" --arg body "${{ inputs.file-name }}" --arg url "$CONTENT_URI" --arg mimetype "${{ inputs.content-type }}" --arg size "$(du -b app-release.apk | cut -f1)" '{msgtype: $msgtype, body: $body, url: $url, info: {mimetype: $mimetype, size: $size}}')"
+
+
+
+        # curl "https://matrix.org/_matrix/client/r0/rooms/${{ inputs.chat-id }}/send/m.room.message/$(uuidgen)" \
+        # -H "Authorization: Bearer ${{ inputs.authentication-token }}" \
+        # -H "Content-Type: application/json" \
+        # -X PUT \
+        # --data "$(jq -c -n --arg msgtype "m.text" --arg body "${{ inputs.message }}" '{msgtype: $msgtype, body: $body}')" \
+        # > matrix_response_body.json
+
+        # echo "Response body was $(cat matrix_response_body.json)"
+        # if [[ -z "$(cat matrix_response_body.json | jq -r .event_id | tr -d '\n')" ]]; then (exit 1) fi
+      shell: bash
+# CONTENT_URI=$(curl -H "Authorization: Bearer ${{ secrets.MATRIX_TOKEN }}" -H "Content-Type: application/vnd.android.package-archive" -X POST --data-binary "@app-release.apk" 'https://matrix.org/_matrix/media/r0/upload?filename=app-release.apk' | jq -r .content_uri)
+# curl "https://matrix.org/_matrix/client/r0/rooms/${{ secrets.MATRIX_CHAT_ID }}/send/m.room.message/$(uuidgen)" -H "Authorization: Bearer ${{ secrets.MATRIX_TOKEN }}" -X PUT --data "{\"msgtype\": \"m.file\", \"body\": \"app-release.apk\", \"url\": \"$CONTENT_URI\", \"info\": {\"mimetype\": \"application/vnd.android.package-archive\", \"size\": $(du -b app-release.apk | cut -f1)}}"
+
